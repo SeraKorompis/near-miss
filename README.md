@@ -80,7 +80,7 @@ Open the URL Vite prints (usually http://localhost:5173), then run a demo clip f
 ./run_demo.sh IMG_9470
 ```
 
-The pipeline broadcasts each look to `ws://127.0.0.1:8765`. The live floor picks that up on its own: the product being viewed, whether a hand is touching it, and the dwell the camera measured. A zone that is not on the filmed shelf, such as `crisps_packs`, is added to the live shelf anyway. History uses the analysed demo clips, not a synthetic week.
+The pipeline broadcasts each look to `ws://127.0.0.1:8765`, and the annotated picture to `http://127.0.0.1:8766/video`. The live floor shows that picture beside the numbers: the product being viewed, whether a hand is touching it, and the dwell the camera measured. A zone that is not on the filmed shelf, such as `crisps_packs`, is added to the live shelf anyway. History uses the analysed demo clips, not a synthetic week.
 
 In the browser console, while a clip plays:
 

@@ -20,10 +20,9 @@ export function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <span className="mark" aria-hidden="true">NM</span>
+          <span className="mark" aria-hidden="true">IS</span>
           <div>
-            <p className="eyebrow">EAT_HACK · Track 2 · Retail Futures</p>
-            <h1>Near-Miss</h1>
+            <h1>INstoreSIGHT</h1>
             <p className="tagline">The sale you are about to lose, and the move that wins it back.</p>
           </div>
         </div>

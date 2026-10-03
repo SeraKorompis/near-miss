@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { analyse, contrastProduct, formatTimer, liveRisk, pct } from './model'
 import { useAisle } from './useAisle'
 
@@ -13,6 +14,7 @@ export function LiveFloor() {
   const otherRisk = other ? liveRisk(other, snap.dwellMs) : 0
   const hot = risk >= 0.6 && snap.phase === 'gaze'
   const between = snap.phase !== 'gaze'
+  const [cameraOn, setCameraOn] = useState(false)
 
   return (
     <section className="live">
@@ -64,6 +66,8 @@ export function LiveFloor() {
         )}
       </div>
 
+      <div className={cameraOn ? 'live-stage' : undefined}>
+      <CameraView onLive={setCameraOn} />
       <div className="heroes">
         <article className="hero">
           <p className="hero-label">Glances</p>
@@ -87,6 +91,7 @@ export function LiveFloor() {
           </p>
           <p className="hero-note">{shown ? shown.name : 'Timer resets when the look moves'}</p>
         </article>
+      </div>
       </div>
 
       <div className="fixture" aria-label="Shelf">
@@ -152,6 +157,44 @@ export function LiveFloor() {
         </article>
       </div>
     </section>
+  )
+}
+
+function CameraView({ onLive }) {
+  const [live, setLive] = useState(false)
+
+  useEffect(() => {
+    onLive(live)
+  }, [live, onLive])
+
+  useEffect(() => {
+    let stopped = false
+    const ping = async () => {
+      const ctrl = new AbortController()
+      const timer = window.setTimeout(() => ctrl.abort(), 700)
+      try {
+        const res = await fetch('http://127.0.0.1:8766/health', { signal: ctrl.signal, cache: 'no-store' })
+        if (!stopped) setLive(res.ok)
+      } catch {
+        if (!stopped) setLive(false)
+      } finally {
+        window.clearTimeout(timer)
+      }
+    }
+    ping()
+    const id = window.setInterval(ping, 1000)
+    return () => {
+      stopped = true
+      window.clearInterval(id)
+    }
+  }, [])
+
+  if (!live) return null
+
+  return (
+    <figure className="camera">
+      <img src="http://127.0.0.1:8766/video" alt="Annotated view from the vision pipeline" />
+    </figure>
   )
 }
 

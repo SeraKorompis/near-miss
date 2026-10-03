@@ -125,6 +125,24 @@ main { width: min(1120px, 100%); margin: 0 auto; padding: 32px 32px 72px; }
 }
 
 .heroes, .kpis { display: grid; gap: 20px; margin: 28px 0; }
+.live-stage {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(240px, 0.72fr);
+  gap: 20px;
+  margin: 28px 0;
+  align-items: stretch;
+}
+.live-stage .heroes { margin: 0; grid-template-columns: 1fr; }
+.camera {
+  margin: 0;
+  position: relative;
+  min-height: 240px;
+  background: #05080e;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.camera img { display: block; width: 100%; height: auto; background: #05080e; }
 .heroes { grid-template-columns: 1fr 1fr 1.35fr; }
 .hero, .kpis div, .predict, .log, .panel, .queue li {
   background: linear-gradient(180deg, rgba(77, 163, 255, 0.05), transparent 42%), var(--card);
@@ -300,7 +318,7 @@ td.expand, td.promote, td.hold { color: var(--green); }
 
 @media (max-width: 980px) {
   .top, .live-bar, .history-head { flex-direction: column; align-items: stretch; }
-  .heroes, .live-split, .split, .kpis, .queue li { grid-template-columns: 1fr; }
+  .heroes, .live-split, .split, .kpis, .queue li, .live-stage { grid-template-columns: 1fr; }
   .tagline, .fine { max-width: 100%; }
   .shelf { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .queue-value { text-align: left; }

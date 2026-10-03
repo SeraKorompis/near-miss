@@ -50,6 +50,14 @@ def frames_to_events(rows):
     )
 
 
+def publish_frame(feed, frame):
+    if feed is None:
+        return
+    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 72])
+    if ok:
+        feed.frame(buf.tobytes())
+
+
 def publish_gaze(feed, stats, people, t):
     """Send the longest current look. An empty frame clears the dashboard timer."""
     if feed is None:
@@ -141,6 +149,7 @@ def main():
                 if stats.people[p["person_id"]]["frames"] >= 3:  # hide 1-2 frame tracker blips
                     draw_person(frame, p)
             draw_panel(frame, stats, t)
+            publish_frame(feed, frame)
             writer.write(frame)
             if not args.no_show:
                 cv2.imshow(win, frame)
