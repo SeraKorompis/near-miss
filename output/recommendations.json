@@ -1,23 +1,29 @@
 {
-  "well_truly_crunchies": {
-    "diagnosis": "Despite shopper interest, no one purchased well_truly_crunchies, suggesting a barrier to purchase.",
-    "action": "Test a price promotion or highlight key benefits/ingredients on the front of the pack.",
+  "well_truly_salt_crisps": {
+    "diagnosis": "Despite shopper interest, the well_truly_salt_crisps are experiencing a high rate of near-misses and zero sales.",
+    "action": "Test a price promotion or reposition the product to improve price visibility and reduce perceived value barrier.",
     "priority": "high",
     "source": "ollama:gemma3:12b"
   },
-  "top_shelf": {
-    "diagnosis": "Despite significant shopper interest, no one purchased the top_shelf product, suggesting a barrier to conversion.",
-    "action": "Test a price promotion or clearer pack information on the back of the product.",
+  "all_that_matters": {
+    "diagnosis": "Despite shopper interest, no one purchased 'all_that_matters', suggesting a barrier to purchase.",
+    "action": "Test displaying a prominent price or key benefit on the front of the packaging.",
     "priority": "high",
     "source": "ollama:gemma3:12b"
   },
-  "crisps_packs": {
-    "diagnosis": "A small but engaged shopper group is converting well, but some are hesitant, suggesting a potential barrier to purchase.",
-    "action": "Test a price promotion or clearer ingredient/nutritional information on the back of the crisps packs.",
+  "well_truly_cheddar_crisps": {
+    "diagnosis": "A small but engaged shopper group is showing interest, with a decent conversion rate, but a notable near-miss rate suggests a barrier to purchase.",
+    "action": "Test a price promotion or clearer, more prominent ingredient/allergen information on the back of the pack.",
     "priority": "medium",
     "source": "ollama:gemma3:12b"
   },
   "kooky_snacks": {
+    "diagnosis": "Only brief glances - the product isn't drawing real attention.",
+    "action": "Improve visibility: move to eye level or add a shelf talker.",
+    "priority": "low",
+    "source": "rules"
+  },
+  "charitea": {
     "diagnosis": "Only brief glances - the product isn't drawing real attention.",
     "action": "Improve visibility: move to eye level or add a shelf talker.",
     "priority": "low",

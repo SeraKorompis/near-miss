@@ -9,7 +9,7 @@
   },
   "products": [
     {
-      "product_id": "well_truly_crunchies",
+      "product_id": "well_truly_salt_crisps",
       "shoppers_noticed": 1,
       "shoppers_interested": 1,
       "purchases": 0,
@@ -23,7 +23,7 @@
       "total_dwell_s": 5.2
     },
     {
-      "product_id": "top_shelf",
+      "product_id": "all_that_matters",
       "shoppers_noticed": 3,
       "shoppers_interested": 1,
       "purchases": 0,
@@ -37,7 +37,7 @@
       "total_dwell_s": 6.4
     },
     {
-      "product_id": "crisps_packs",
+      "product_id": "well_truly_cheddar_crisps",
       "shoppers_noticed": 3,
       "shoppers_interested": 3,
       "purchases": 2,
@@ -48,7 +48,7 @@
       "near_miss_rate": 0.333,
       "conversion_rate": 0.667,
       "avg_dwell_s": 3.7,
-      "total_dwell_s": 11.2
+      "total_dwell_s": 11.0
     },
     {
       "product_id": "kooky_snacks",
@@ -63,13 +63,27 @@
       "conversion_rate": 0.0,
       "avg_dwell_s": 0.7,
       "total_dwell_s": 1.5
+    },
+    {
+      "product_id": "charitea",
+      "shoppers_noticed": 1,
+      "shoppers_interested": 0,
+      "purchases": 0,
+      "near_misses": 0,
+      "near_miss_put_back": 0,
+      "near_miss_looked": 0,
+      "touches": 0,
+      "near_miss_rate": 0.0,
+      "conversion_rate": 0.0,
+      "avg_dwell_s": 0.7,
+      "total_dwell_s": 0.7
     }
   ],
   "moments": [
     {
       "shopper": "IMG_9470 #1",
       "video": "IMG_9470",
-      "product_id": "top_shelf",
+      "product_id": "all_that_matters",
       "outcome": "glance",
       "dwell_s": 1.3,
       "start_s": 0.3,
@@ -80,18 +94,29 @@
     {
       "shopper": "IMG_9470 #1",
       "video": "IMG_9470",
-      "product_id": "crisps_packs",
+      "product_id": "charitea",
+      "outcome": "glance",
+      "dwell_s": 0.7,
+      "start_s": 1.9,
+      "end_s": 2.6,
+      "touched": 0,
+      "bought": 0
+    },
+    {
+      "shopper": "IMG_9470 #1",
+      "video": "IMG_9470",
+      "product_id": "well_truly_cheddar_crisps",
       "outcome": "purchase",
-      "dwell_s": 4.3,
-      "start_s": 1.8,
-      "end_s": 6.1,
+      "dwell_s": 3.8,
+      "start_s": 2.6,
+      "end_s": 6.4,
       "touched": 1,
       "bought": 1
     },
     {
       "shopper": "IMG_9472 #1",
       "video": "IMG_9472",
-      "product_id": "top_shelf",
+      "product_id": "all_that_matters",
       "outcome": "glance",
       "dwell_s": 1.4,
       "start_s": 0.8,
@@ -102,22 +127,22 @@
     {
       "shopper": "IMG_9472 #1",
       "video": "IMG_9472",
-      "product_id": "crisps_packs",
+      "product_id": "well_truly_cheddar_crisps",
       "outcome": "purchase",
-      "dwell_s": 3.1,
+      "dwell_s": 3.3,
       "start_s": 2.4,
-      "end_s": 11.7,
+      "end_s": 11.9,
       "touched": 1,
       "bought": 1
     },
     {
       "shopper": "IMG_9472 #1",
       "video": "IMG_9472",
-      "product_id": "well_truly_crunchies",
+      "product_id": "well_truly_salt_crisps",
       "outcome": "near_miss_put_back",
       "dwell_s": 5.2,
-      "start_s": 3.2,
-      "end_s": 9.1,
+      "start_s": 3.4,
+      "end_s": 9.2,
       "touched": 1,
       "bought": 0
     },
@@ -135,7 +160,7 @@
     {
       "shopper": "IMG_9473 #1",
       "video": "IMG_9473",
-      "product_id": "top_shelf",
+      "product_id": "all_that_matters",
       "outcome": "near_miss_looked",
       "dwell_s": 3.7,
       "start_s": 2.1,
@@ -146,7 +171,7 @@
     {
       "shopper": "IMG_9473 #1",
       "video": "IMG_9473",
-      "product_id": "crisps_packs",
+      "product_id": "well_truly_cheddar_crisps",
       "outcome": "near_miss_looked",
       "dwell_s": 3.9,
       "start_s": 3.2,

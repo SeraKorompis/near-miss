@@ -1,5 +1,5 @@
-# Near-Miss
-EAT_HACK - shows brands the sales they *almost* won: products shoppers looked at or picked up, but didn't buy.
+# In Store Sight
+EAT_HACK - shows brands the sales they *almost* won: products shoppers looked at or picked up, but didn't buy (near-misses).
 
 ## Quick start (demo) - no labelling needed
 Python 3.10-3.12.

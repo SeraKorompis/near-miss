@@ -1,3 +1,4 @@
 person_id,product_id,start_s,end_s,dwell_s,touched
-1,top_shelf,0.34,1.62,1.28,0
-1,crisps_packs,1.82,6.08,4.26,1
+1,all_that_matters,0.34,1.62,1.28,0
+1,charitea,1.89,2.57,0.68,0
+1,well_truly_cheddar_crisps,2.63,6.42,3.78,1

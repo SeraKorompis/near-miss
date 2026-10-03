@@ -38,7 +38,7 @@ HOLD_MEMORY_S = 1.0     # keep "holding" through brief wrist-detection dropouts
 REACH_EXTEND = 0.8      # ...or the arm stretched this far sideways (torso lengths)
 HIP_MARGIN = 0.1        # a touch needs the hand above hip level (minus this margin)...
 BODY_CLEARANCE = 0.35   # ...and this far (torso lengths) sideways from the body's centre line
-TOUCH_FRAMES = 2        # consecutive frames a hand must stay in a zone (ignores hands passing through)
+TOUCH_FRAMES = 4        # consecutive frames a hand must stay in a zone (ignores hands passing through)
 
 
 def load_zones(path):

@@ -102,7 +102,7 @@ def draw_panel(frame, stats, t):
     # Only people seen recently, for more than a few frames, who looked at something
     rows = sorted((pid, st) for pid, st in stats.people.items()
                   if st["frames"] >= 3 and t - st["last_t"] < 1.5 and (st["current"] or st["totals"]))
-    pw = 380
+    pw = 470
     ph = 50 + 92 * max(1, len(rows))
     x0, y0 = w - pw - 15, 15
     overlay(frame, lambda layer: cv2.rectangle(layer, (x0, y0), (x0 + pw, y0 + ph), (30, 25, 20), -1), 0.85)

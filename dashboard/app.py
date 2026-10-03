@@ -1,4 +1,4 @@
-"""Near-Miss dashboard.
+"""In Store Sight dashboard.
 
     streamlit run dashboard/app.py
 
@@ -25,7 +25,7 @@ OUTCOME_LABEL = {
     "glance": "Glance",
 }
 
-st.set_page_config(page_title="Near-Miss", page_icon="👀", layout="wide")
+st.set_page_config(page_title="In Store Sight", page_icon="👀", layout="wide")
 
 
 @st.cache_data
@@ -44,7 +44,7 @@ results, recs = load()
 summary, products = results["summary"], results["products"]
 moments = pd.DataFrame(results["moments"])
 
-st.title("Near-Miss")
+st.title("In Store Sight")
 st.caption("The sales you almost won: products shoppers looked at or picked up, but didn't buy. "
            f"Interest = looked ≥ {summary['dwell_threshold_s']}s or touched.")
 
