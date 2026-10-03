@@ -252,7 +252,7 @@ main { width: min(1120px, 100%); margin: 0 auto; padding: 32px 32px 72px; }
   font-size: 12px;
   font-weight: 700;
 }
-.expand .queue-action, .promote .queue-action { color: var(--green); background: rgba(62, 224, 160, 0.12); }
+.expand .queue-action, .promote .queue-action, .priority-low .queue-action { color: var(--green); background: rgba(62, 224, 160, 0.12); }
 .queue h3 { margin: 6px 0; font-size: 18px; }
 .queue h3 span { margin-left: 8px; font-size: 13px; color: var(--green); }
 .math { margin-top: 8px; color: var(--muted); font-size: 13px; }

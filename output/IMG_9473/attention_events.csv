@@ -1,0 +1,7 @@
+person_id,product_id,start_s,end_s,dwell_s,touched
+1,top_shelf,2.07,3.13,1.07,0
+1,crisps_packs,3.2,7.07,3.87,0
+1,top_shelf,4.07,4.6,0.53,0
+1,kooky_snacks,6.6,7.53,0.93,0
+1,top_shelf,7.6,8.93,1.33,0
+1,top_shelf,9.47,10.2,0.73,0

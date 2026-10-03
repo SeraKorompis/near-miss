@@ -4,7 +4,7 @@
 .env
 .venv/
 __pycache__/
-output/
+output/*
 node_modules/
 dist/
 
@@ -12,3 +12,12 @@ dist/
 !videos/IMG_9470.MOV
 !videos/IMG_9472.MOV
 !videos/IMG_9473.MOV
+.claude/
+# Demo results, so the dashboard works right after cloning
+!output/results.json
+!output/recommendations.json
+!output/IMG_9470/
+!output/IMG_9472/
+!output/IMG_9473/
+output/IMG_947*/attention_frames.csv
+!output/IMG_947*/annotated.mp4

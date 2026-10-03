@@ -1,28 +1,22 @@
-import { useMemo, useState } from 'react'
-import { analyse, money, pct, secs, sessions, weekShape } from './model'
+import results from '../../output/results.json'
+import recommendations from '../../output/recommendations.json'
+import { pct } from './model'
 
-const ACTIONS = {
-  reprice: 'Reprice',
-  clarify: 'Clarify pack',
-  reposition: 'Move up',
-  promote: 'Promote',
-  expand: 'Add facing',
-  review: 'Free facing',
-  hold: 'Leave it',
+const OUTCOME = {
+  near_miss_put_back: 'Picked up, put back',
+  near_miss_looked: 'Looked, never touched',
+  purchase: 'Bought',
+  glance: 'Glance',
 }
 
-const PERIODS = [
-  { id: 'today', label: 'Today', word: 'today' },
-  { id: 'week', label: 'This week', word: 'this week' },
-  { id: 'month', label: 'This month', word: 'this month' },
-]
+const PRIORITY = { high: 'High', medium: 'Medium', low: 'Low' }
 
 export function History() {
-  const [period, setPeriod] = useState('week')
-  const report = useMemo(() => analyse(period), [period])
-  const word = PERIODS.find((item) => item.id === period).word
-  const lead = report.queue[0]
-  const maxLeak = Math.max(...report.products.map((p) => p.leakage))
+  const { summary, products, moments } = results
+  const nearMissRate = summary.interested_pairs ? summary.near_misses / summary.interested_pairs : 0
+  const maxNear = Math.max(1, ...products.map((product) => product.near_misses))
+  const lead = products.find((product) => recommendations[product.product_id]) || products[0]
+  const leadRec = lead ? recommendations[lead.product_id] : null
 
   return (
     <section className="history">
@@ -30,189 +24,180 @@ export function History() {
         <div>
           <p className="kicker">What the buyer should do next</p>
           <h2>
-            This fixture is leaking {money(report.leakage)} {word}.
+            {summary.near_misses} near-miss{summary.near_misses === 1 ? '' : 'es'} across the demo clips.
           </h2>
           <p className="lede">
-            {money(report.recovered)} comes back if you take the first three moves. The ranking is predicted recovered revenue, not raw attention. A product people stare at and still buy is not a problem. Figures are a synthetic week for a fictional fixture — stable rates, simulated till — and the rules are at the bottom of this page.
+            Taken from the three tripod videos and the simulated till. A near-miss is a pickup that goes back, or a look of at least {summary.dwell_threshold_s}s with no touch and no purchase. Brief glances are not counted as interest.
           </p>
-        </div>
-        <div className="periods" role="group" aria-label="Time range">
-          {PERIODS.map((item) => (
-            <button key={item.id} type="button" aria-pressed={period === item.id} onClick={() => setPeriod(item.id)}>
-              {item.label}
-            </button>
-          ))}
         </div>
       </div>
 
-      <p className="next-call" data-testid="next-move">
-        <span>Next</span>
-        {lead.title} — {lead.name}
-      </p>
+      {lead && leadRec && (
+        <p className="next-call" data-testid="next-move">
+          <span>Next</span>
+          {leadRec.action} — {humanize(lead.product_id)}
+        </p>
+      )}
 
       <dl className="kpis">
         <div>
-          <dt>Glances</dt>
-          <dd data-testid="history-glances">{report.glances.toLocaleString('en-GB')}</dd>
+          <dt>Shoppers</dt>
+          <dd>{summary.shoppers}</dd>
         </div>
         <div>
-          <dt>Products</dt>
-          <dd>8</dd>
+          <dt>Interested</dt>
+          <dd>{summary.interested_pairs}</dd>
         </div>
         <div>
-          <dt>Attention</dt>
-          <dd>{(report.attentionMs / 3600000).toFixed(1)}h</dd>
+          <dt>Purchases</dt>
+          <dd>{summary.purchases}</dd>
         </div>
         <div>
           <dt>Near-misses</dt>
-          <dd>{report.nearMisses.toLocaleString('en-GB')}</dd>
+          <dd>{summary.near_misses}</dd>
         </div>
         <div>
           <dt>Near-miss rate</dt>
-          <dd>{pct(report.nearMissRate)}</dd>
+          <dd>{pct(nearMissRate)}</dd>
         </div>
         <div>
           <dt>Conversion</dt>
-          <dd>{pct(report.conversion)}</dd>
+          <dd>{pct(summary.conversion_rate)}</dd>
         </div>
       </dl>
 
       <ol className="queue">
-        {report.queue.map((product, index) => (
-          <li key={product.id} className={product.action}>
-            <p className="queue-index">{String(index + 1).padStart(2, '0')}</p>
-            <div>
-              <p className="queue-action">{product.title}</p>
-              <h3>
-                {product.name}
-                <span>{money(product.price, true)}</span>
-              </h3>
-              <p>{product.why}</p>
-              <p className="math">{product.math}</p>
-            </div>
-            <div className="queue-value">
-              <strong>{product.recovery > 0 ? money(product.recovery) : '—'}</strong>
-              <span>{product.recovery > 0 ? `predicted back ${word}` : 'facing, not cash'}</span>
-              <em>
-                {product.confidence} confidence · {product.weeklyGlances.toLocaleString('en-GB')} weekly glances
-              </em>
-            </div>
-          </li>
-        ))}
+        {products.map((product, index) => {
+          const rec = recommendations[product.product_id] || {}
+          const priority = rec.priority || 'low'
+          return (
+            <li key={product.product_id} className={`priority-${priority}`}>
+              <p className="queue-index">{String(index + 1).padStart(2, '0')}</p>
+              <div>
+                <p className="queue-action">{PRIORITY[priority] || priority}</p>
+                <h3>{humanize(product.product_id)}</h3>
+                <p>{rec.diagnosis}</p>
+                <p className="math">{rec.action}</p>
+              </div>
+              <div className="queue-value">
+                <strong>{product.near_misses}</strong>
+                <span>{product.near_misses === 1 ? 'near-miss' : 'near-misses'}</span>
+                <em>
+                  {product.purchases} bought · {product.avg_dwell_s.toFixed(1)}s avg attention
+                </em>
+              </div>
+            </li>
+          )
+        })}
       </ol>
-
-      <p className="holds">
-        Leave alone {word}: {report.holds.length} products already convert when they are seen.
-      </p>
 
       <div className="stack">
         <article className="panel">
-          <p className="kicker">Where the money walks away</p>
-          <h3>Leakage by product</h3>
+          <p className="kicker">Where interest walks away</p>
+          <h3>Near-misses by product</h3>
           <ul className="bars">
-            {[...report.products]
-              .sort((a, b) => b.leakage - a.leakage)
-              .map((product) => (
-                <li key={product.id}>
-                  <span className="bar-name">{product.name}</span>
-                  <span className="bar-track">
-                    <span className={product.action} style={{ width: `${(product.leakage / maxLeak) * 100}%` }} />
-                  </span>
-                  <span className="bar-value">{money(product.leakage)}</span>
-                </li>
-              ))}
+            {products.map((product) => (
+              <li key={product.product_id}>
+                <span className="bar-name">{humanize(product.product_id)}</span>
+                <span className="bar-track">
+                  <span
+                    className={recommendations[product.product_id]?.priority === 'low' ? 'promote' : ''}
+                    style={{ width: `${(product.near_misses / maxNear) * 100}%` }}
+                  />
+                </span>
+                <span className="bar-value">{product.near_misses}</span>
+              </li>
+            ))}
           </ul>
         </article>
 
         <article className="panel">
-          <p className="kicker">Attention against the till</p>
-          <h3>Dwell versus conversion</h3>
-          <p className="fine">Crosshairs at 3 seconds and 30% conversion. Bottom right is a near-miss: they studied it and did not buy. Bottom left was seen and not studied. Above the line, it sells.</p>
-          <Scatter products={report.products} />
-        </article>
-      </div>
-
-      <div className="stack">
-        <article className="panel">
-          <p className="kicker">Shape of the week</p>
-          <h3>Near-misses by day</h3>
-          <div className="days" aria-hidden="true">
-            {weekShape.map((day) => (
-              <div key={day.day} className="day">
-                <span style={{ height: `${Math.round((day.share / 0.19) * 112)}px` }} />
-                <small>{day.day}</small>
-              </div>
-            ))}
-          </div>
-          <p className="fine">Friday is the heavy day. Today and this month scale the week’s volume — they do not invent a new pattern. Rates, and therefore the decision, stay put.</p>
+          <p className="kicker">Interested shoppers</p>
+          <h3>Bought against walked away</h3>
+          <ul className="bars">
+            {products.map((product) => {
+              const total = product.purchases + product.near_misses
+              return (
+                <li key={product.product_id}>
+                  <span className="bar-name">{humanize(product.product_id)}</span>
+                  <span className="bar-track">
+                    <span className="promote" style={{ width: total ? `${(product.purchases / total) * 100}%` : '0%' }} />
+                  </span>
+                  <span className="bar-value">{product.purchases}/{total || 0}</span>
+                </li>
+              )
+            })}
+          </ul>
+          <p className="fine">The bar is the share who bought. The fraction is purchases over interested shoppers.</p>
         </article>
       </div>
 
       <article className="panel">
         <p className="kicker">All products</p>
-        <h3>The fixture, in full</h3>
+        <h3>The clips, in full</h3>
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
                 <th>Product</th>
-                <th>Price</th>
-                <th>Glances</th>
+                <th>Noticed</th>
+                <th>Interested</th>
                 <th>Avg dwell</th>
                 <th>Near-misses</th>
+                <th>Bought</th>
                 <th>Conversion</th>
-                <th>Leakage</th>
                 <th>Next move</th>
               </tr>
             </thead>
             <tbody>
-              {[...report.products]
-                .sort((a, b) => b.leakage - a.leakage)
-                .map((product) => (
-                  <tr key={product.id}>
+              {products.map((product) => {
+                const rec = recommendations[product.product_id]
+                const priority = rec?.priority || 'low'
+                return (
+                  <tr key={product.product_id}>
                     <td>
-                      <strong>{product.name}</strong>
-                      <small>{product.brand} · {product.position}</small>
+                      <strong>{humanize(product.product_id)}</strong>
+                      <small>{product.near_miss_put_back} put back · {product.near_miss_looked} looked only</small>
                     </td>
-                    <td>{money(product.price, true)}</td>
-                    <td>{product.glances.toLocaleString('en-GB')}</td>
-                    <td>{secs(product.avgDwellMs)}</td>
-                    <td>{product.nearMisses.toLocaleString('en-GB')}</td>
-                    <td>{pct(product.conversion)}</td>
-                    <td>{money(product.leakage)}</td>
-                    <td className={product.action}>{ACTIONS[product.action]}</td>
+                    <td>{product.shoppers_noticed}</td>
+                    <td>{product.shoppers_interested}</td>
+                    <td>{product.avg_dwell_s.toFixed(1)}s</td>
+                    <td className="miss">{product.near_misses}</td>
+                    <td className="buy">{product.purchases}</td>
+                    <td>{pct(product.conversion_rate)}</td>
+                    <td className={priority === 'low' ? 'hold' : 'reprice'}>{rec?.action || '—'}</td>
                   </tr>
-                ))}
+                )
+              })}
             </tbody>
           </table>
         </div>
       </article>
 
       <article className="panel">
-        <p className="kicker">Session sample</p>
-        <h3>Scripted trips from the synthetic week</h3>
-        <p className="fine">A sample, not the ledger. Totals above are the full week, so they will not match the sum of these rows.</p>
+        <p className="kicker">What the camera saw</p>
+        <h3>Moments from the demo clips</h3>
         <div className="table-wrap">
           <table className="sessions">
             <thead>
               <tr>
-                <th>When</th>
-                <th>Products</th>
-                <th>Glances</th>
-                <th>Longest look</th>
+                <th>Clip</th>
+                <th>Product</th>
+                <th>Dwell</th>
+                <th>From</th>
                 <th>Result</th>
-                <th>What happened</th>
               </tr>
             </thead>
             <tbody>
-              {sessions.map((session) => (
-                <tr key={session.when}>
-                  <td>{session.when}</td>
-                  <td>{session.products}</td>
-                  <td>{session.glances}</td>
-                  <td>{session.dwell}</td>
-                  <td className={session.result === 'Near-miss' ? 'miss' : session.result === 'Purchase' ? 'buy' : ''}>{session.result}</td>
-                  <td>{session.note}</td>
+              {moments.map((moment) => (
+                <tr key={`${moment.shopper}-${moment.product_id}-${moment.start_s}`}>
+                  <td>{moment.video}</td>
+                  <td>{humanize(moment.product_id)}</td>
+                  <td>{moment.dwell_s.toFixed(1)}s</td>
+                  <td>{moment.start_s.toFixed(1)}s</td>
+                  <td className={moment.outcome.startsWith('near_miss') ? 'miss' : moment.outcome === 'purchase' ? 'buy' : ''}>
+                    {OUTCOME[moment.outcome] || moment.outcome}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -221,45 +206,20 @@ export function History() {
       </article>
 
       <article className="panel assumptions">
-        <p className="kicker">How the number is made</p>
-        <h3>Assumptions a buyer can argue with</h3>
+        <p className="kicker">How a near-miss is called</p>
+        <h3>From the vision pipeline</h3>
         <ul>
-          <li>A glance is a look of at least 0.4 seconds. A near-miss is a look of at least 3 seconds with no purchase.</li>
-          <li>Leakage = near-misses × price × 0.42. The 0.42 is the share we assume we can win back if we fix the friction we named. It is a planning factor, not a measured close rate.</li>
-          <li>Price-test yield 0.55 of leakage. Pack-fix yield 0.40. A move up the shelf holds 2% of glances that currently slide off. A promotion fills 25% of the glance gap to the fixture median. An extra facing lifts sales 12%.</li>
-          <li>Live risk starts near 8% and rises with dwell toward that product’s historical walk-away rate: 0.08 + (1 − conversion − 0.08) × sigmoid(0.85 × (seconds − 3.2)).</li>
-          <li>Confidence uses the weekly sample, so switching to today does not pretend the evidence got thinner. Under 300 weekly glances stays a low-confidence watch-out.</li>
-          <li>History volumes are synthetic. Product names are the filmed shelf. Head direction is a proxy for gaze. There is no shopper identity — the live feed sends a product name only. The till side is a simulated purchase log until a real one is connected.</li>
+          <li>Interest is a look of at least {summary.dwell_threshold_s} seconds, or a touch. Anything shorter is a glance and is left out of the rate.</li>
+          <li>Put back: they touched it and the till log does not show a purchase. Looked: they stayed for {summary.dwell_threshold_s}s or more, never touched, and did not buy.</li>
+          <li>Purchases come from <code>analysis/till_log.csv</code>, a simulated till for these three clips.</li>
+          <li>The next move is the recommendation written to <code>output/recommendations.json</code>. If Ollama is not running, that file falls back to the rules in <code>analysis/recommend.py</code>.</li>
         </ul>
       </article>
     </section>
   )
 }
 
-function Scatter({ products }) {
-  const width = 960
-  const height = 380
-  const pad = { l: 48, r: 88, t: 20, b: 32 }
-  const xMax = 10
-  const yMax = 0.6
-  const xOf = (ms) => pad.l + (ms / 1000 / xMax) * (width - pad.l - pad.r)
-  const yOf = (conv) => pad.t + (1 - conv / yMax) * (height - pad.t - pad.b)
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Scatter of average dwell against conversion">
-      <line x1={pad.l} y1={yOf(0.3)} x2={width - pad.r} y2={yOf(0.3)} className="grid" />
-      <line x1={xOf(3000)} y1={pad.t} x2={xOf(3000)} y2={height - pad.b} className="grid" />
-      {products.map((product) => {
-        const x = xOf(product.avgDwellMs)
-        const y = yOf(product.conversion)
-        return (
-          <g key={product.id} className={product.action}>
-            <circle cx={x} cy={y} r={product.action === 'hold' ? 4 : 7} />
-            {product.action !== 'hold' && <text x={x + 10} y={y + 4}>{product.short}</text>}
-          </g>
-        )
-      })}
-      <text x={(pad.l + width - pad.r) / 2} y={height - 6} textAnchor="middle" className="axis">Average dwell →</text>
-      <text x={14} y={(pad.t + height - pad.b) / 2} transform={`rotate(-90 14 ${(pad.t + height - pad.b) / 2})`} textAnchor="middle" className="axis">Conversion →</text>
-    </svg>
-  )
+function humanize(id) {
+  const text = String(id).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Unknown product'
 }

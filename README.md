@@ -18,6 +18,18 @@ Results go to `output/<video>/`:
 - `attention_events.csv` - person_id, product_id, start_s, end_s, dwell_s, touched
 - `attention_frames.csv` - per-frame detail
 
+## Near-misses, AI recommendations and dashboard
+```bash
+./run_demo.sh --no-show            # 1. attention events for the 3 videos
+python analysis/nearmiss.py         # 2. + till log -> output/results.json
+python analysis/recommend.py        # 3. Ollama (gemma3:12b) -> output/recommendations.json (~45 s)
+streamlit run dashboard/app.py      # 4. dashboard at http://localhost:8501
+```
+- `analysis/till_log.csv` is the simulated till log (what each shopper bought).
+- Near-miss = picked up and put back, or looked >= 2.5 s without touching, and not bought.
+- `recommend.py` falls back to rules if Ollama isn't running (`--rules` forces that);
+  other model: `NEARMISS_MODEL=llama3.2:3b python analysis/recommend.py`.
+
 ## Demo videos
 `videos/IMG_9470.MOV`, `IMG_9472.MOV`, `IMG_9473.MOV` (tripod, same camera position).
 
@@ -54,7 +66,7 @@ python pipeline/run_attention.py --source my_video.mov --zones zones.json
 
 ## Dashboard
 
-The live floor counts glances, products looked at, and a dwell timer that climbs while the same product name keeps arriving. History stays on dummy volumes for this shelf and ranks the next move. Today and this month scale the week’s volume. They do not change the decision.
+The live floor counts glances, products looked at, and a dwell timer for the product the camera is on. History reads `output/results.json` and `output/recommendations.json`: the near-misses from the demo clips, ranked, with the suggested next move.
 
 ```bash
 cd frontend
@@ -68,7 +80,7 @@ Open the URL Vite prints (usually http://localhost:5173), then run a demo clip f
 ./run_demo.sh IMG_9470
 ```
 
-The pipeline broadcasts each look to `ws://127.0.0.1:8765`. The live floor picks that up on its own: the product being viewed, whether a hand is touching it, and the dwell the camera measured. History stays on dummy volumes. A zone that is not on the dummy shelf, such as `crisps_packs`, is added to the live shelf anyway.
+The pipeline broadcasts each look to `ws://127.0.0.1:8765`. The live floor picks that up on its own: the product being viewed, whether a hand is touching it, and the dwell the camera measured. A zone that is not on the filmed shelf, such as `crisps_packs`, is added to the live shelf anyway. History uses the analysed demo clips, not a synthetic week.
 
 In the browser console, while a clip plays:
 
@@ -90,6 +102,6 @@ Or launch with a socket and send the same JSON:
 { "type": "reset" }
 ```
 
-The live floor stays at zero until the first look arrives. Names are matched to the shelf list, case-insensitively. An unknown name still runs the timer, and dummy history is left unchanged.
+The live floor stays at zero until the first look arrives. Names are matched to the shelf list, case-insensitively. An unknown name still runs the timer.
 
 Store zones and dwell, not faces or identity. Head direction is a proxy for gaze, not gaze itself. The purchase side is a simulated till log until a real one is connected.
