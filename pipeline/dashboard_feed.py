@@ -103,6 +103,12 @@ class DashboardFeed:
         })
         self.loop.call_soon_threadsafe(self._broadcast, payload)
 
+    def suggestions(self, video, items):
+        if self.loop is None:
+            return
+        payload = json.dumps({"type": "suggestions", "video": video, "items": items})
+        self.loop.call_soon_threadsafe(self._broadcast, payload)
+
     def _broadcast(self, payload):
         for ws in list(self.clients):
             asyncio.create_task(self._send(ws, payload))

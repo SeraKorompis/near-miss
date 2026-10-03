@@ -10,6 +10,8 @@ pip install -r requirements.txt
 ./run_demo.sh            # plays all 3 demo videos with gaze tracking (space = pause, q = next)
 ./run_demo.sh IMG_9472   # just one video
 ```
+To watch that run in the dashboard, start it first in another terminal with `cd frontend && npm run dev`, then run `./run_demo.sh` here. Open http://localhost:5173 — the live floor shows the camera and the product being looked at.
+
 The product zones for the demo videos are already in `zones_tripod.json`, so **don't run
 `calibrate.py` or `draw_zones.py`** for the demo - those are only for a new camera setup.
 

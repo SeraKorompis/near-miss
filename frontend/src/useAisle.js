@@ -66,7 +66,10 @@ export function useAisle() {
         }
       }
       socket.onclose = () => {
-        setFeed((current) => (current === 'live' ? 'error' : current))
+        setFeed((current) => {
+          if (current !== 'live') return current
+          return cursor.current.suggestions?.length ? 'done' : 'error'
+        })
         if (!stopped) retry = window.setTimeout(connect, 1500)
       }
     }

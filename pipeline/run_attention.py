@@ -50,6 +50,18 @@ def frames_to_events(rows):
     )
 
 
+def clip_suggestions(events, args):
+    """Ask analysis/recommend.py for a suggestion per product in this clip."""
+    analysis = Path(__file__).resolve().parent.parent / "analysis"
+    sys.path.insert(0, str(analysis))
+    from recommend import suggest_clip
+
+    video = Path(args.out_dir).name
+    if video in ("output", ".", ""):
+        video = Path(args.source).stem
+    return suggest_clip(events, video)
+
+
 def publish_frame(feed, frame):
     if feed is None:
         return
@@ -178,6 +190,17 @@ def main():
     print(f"\n{len(events)} attention events -> {out_dir / 'attention_events.csv'}")
     for ev in events:
         print(f"  ID {ev[0]:02d}  {ev[1]:<15} {ev[2]:6.1f}s - {ev[3]:6.1f}s  ({ev[4]:.1f}s){'  touched' if ev[5] else ''}")
+
+    suggestions = clip_suggestions(events, args)
+    print(f"\n{len(suggestions)} suggestions")
+    for item in suggestions:
+        print(f"  [{item['priority']:>6}] {item['product']:<22} {item['action']}")
+    if feed:
+        video = Path(args.out_dir).name
+        if video in ("output", ".", ""):
+            video = Path(args.source).stem
+        feed.suggestions(video, suggestions)
+        time.sleep(0.5)
 
 
 if __name__ == "__main__":

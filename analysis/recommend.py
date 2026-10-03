@@ -8,6 +8,7 @@ Reads output/results.json and writes output/recommendations.json, so the
 dashboard never waits for the model. Falls back to rules if Ollama isn't running.
 """
 import argparse
+import csv
 import json
 import os
 from pathlib import Path
@@ -65,6 +66,85 @@ def ask_llm(p, threshold):
     if out["priority"] not in ("high", "medium", "low"):
         out["priority"] = rule_based(p)["priority"]
     return out
+
+
+def suggest_clip(events, video, till_path=None):
+    """Suggestions for one clip, using the same rules as the full analysis.
+
+    events: (person_id, product_id, start_s, end_s, dwell_s, touched)
+    Returns the list the live dashboard shows, highest priority first.
+    """
+    from nearmiss import classify
+
+    till_path = Path(till_path) if till_path else ROOT / "analysis" / "till_log.csv"
+    bought = {}
+    if till_path.exists():
+        with till_path.open(newline="") as handle:
+            for row in csv.DictReader(handle):
+                if row["video"] == video:
+                    bought[(int(row["person_id"]), row["product_id"])] = int(row["bought"] or 0)
+
+    grouped = {}
+    for pid, product, _start, _end, dwell, touched in events:
+        slot = grouped.setdefault((int(pid), product), {"dwell": 0.0, "touched": 0})
+        slot["dwell"] += float(dwell)
+        slot["touched"] = max(slot["touched"], int(touched))
+
+    by_product = {}
+    for (pid, product), slot in grouped.items():
+        outcome = classify(type("Row", (), {
+            "bought": bought.get((pid, product), 0),
+            "touched": slot["touched"],
+            "dwell_s": slot["dwell"],
+        })())
+        stats = by_product.setdefault(product, {
+            "product_id": product,
+            "shoppers_noticed": 0,
+            "shoppers_interested": 0,
+            "purchases": 0,
+            "near_misses": 0,
+            "near_miss_put_back": 0,
+            "near_miss_looked": 0,
+            "dwell_sum": 0.0,
+            "interested_dwell": 0.0,
+            "interested_n": 0,
+        })
+        stats["shoppers_noticed"] += 1
+        stats["dwell_sum"] += slot["dwell"]
+        if outcome != "glance":
+            stats["shoppers_interested"] += 1
+            stats["interested_n"] += 1
+            stats["interested_dwell"] += slot["dwell"]
+        if outcome == "purchase":
+            stats["purchases"] += 1
+        elif outcome == "near_miss_put_back":
+            stats["near_miss_put_back"] += 1
+            stats["near_misses"] += 1
+        elif outcome == "near_miss_looked":
+            stats["near_miss_looked"] += 1
+            stats["near_misses"] += 1
+
+    items = []
+    for stats in by_product.values():
+        interested = stats["shoppers_interested"]
+        noticed = stats["shoppers_noticed"]
+        stats["near_miss_rate"] = stats["near_misses"] / interested if interested else 0.0
+        stats["conversion_rate"] = stats["purchases"] / interested if interested else 0.0
+        dwell = stats["interested_dwell"] / stats["interested_n"] if stats["interested_n"] else stats["dwell_sum"] / max(noticed, 1)
+        stats["avg_dwell_s"] = round(dwell, 1)
+        rec = rule_based(stats)
+        items.append({
+            "product": stats["product_id"],
+            "priority": rec["priority"],
+            "diagnosis": rec["diagnosis"],
+            "action": rec["action"],
+            "dwell_s": stats["avg_dwell_s"],
+            "near_misses": stats["near_misses"],
+            "purchases": stats["purchases"],
+        })
+    rank = {"high": 0, "medium": 1, "low": 2}
+    items.sort(key=lambda item: (rank[item["priority"]], -item["near_misses"], item["product"]))
+    return items
 
 
 def main():

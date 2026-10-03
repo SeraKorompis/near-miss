@@ -22,7 +22,7 @@ export function LiveFloor() {
         <div>
           <p className="kicker">
             <span className={feed === 'live' ? 'dot live' : feed === 'mock' && playing ? 'dot' : 'dot idle'} />
-            {feed === 'live' ? 'Live vision feed' : feed === 'error' ? 'Feed unavailable' : feed === 'mock' ? 'Sample aisle' : 'Waiting for the camera'}
+            {feed === 'live' ? 'Live vision feed' : feed === 'done' ? 'Clip finished' : feed === 'error' ? 'Feed unavailable' : feed === 'mock' ? 'Sample aisle' : 'Waiting for the camera'}
             {feed === 'mock' && (
               <>
                 {' '}
@@ -33,6 +33,8 @@ export function LiveFloor() {
           <p className="fine">
             {feed === 'live'
               ? 'The camera is sending the product it sees. The timer is that look’s dwell. A product that is not on the dummy shelf is added here anyway.'
+              : feed === 'done'
+                ? 'The clip has finished. Suggestions from the analysis are below.'
               : feed === 'mock'
                 ? 'This is a scripted sample, not the camera. Start the vision demo and the live floor switches over.'
                 : 'No looks yet. Glances, products and the timer stay at zero until the vision demo sends a product.'}
@@ -93,6 +95,31 @@ export function LiveFloor() {
         </article>
       </div>
       </div>
+
+      {snap.suggestions?.length > 0 && (
+        <section className="suggestions" aria-label="Suggestions">
+          <p className="kicker">From the analysis{snap.suggestionVideo ? ` · ${snap.suggestionVideo}` : ''}</p>
+          <h2>What to try next</h2>
+          <ol className="queue">
+            {snap.suggestions.map((item, index) => (
+              <li key={item.product} className={`priority-${item.priority || 'low'}`}>
+                <p className="queue-index">{String(index + 1).padStart(2, '0')}</p>
+                <div>
+                  <p className="queue-action">{labelPriority(item.priority)}</p>
+                  <h3>{humanize(item.product)}</h3>
+                  <p>{item.diagnosis}</p>
+                  <p className="math">{item.action}</p>
+                </div>
+                <div className="queue-value">
+                  <strong>{item.near_misses}</strong>
+                  <span>{item.near_misses === 1 ? 'near-miss' : 'near-misses'}</span>
+                  <em>{item.purchases} bought · {Number(item.dwell_s).toFixed(1)}s attention</em>
+                </div>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       <div className="fixture" aria-label="Shelf">
         {liveOnly.length > 0 && (
@@ -233,6 +260,11 @@ function cardFor(id) {
     title: 'No history yet',
     next: 'The camera is measuring this look. Dummy history does not include this product.',
   }
+}
+
+function labelPriority(priority) {
+  const text = priority || 'low'
+  return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
 function humanize(id) {

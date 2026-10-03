@@ -47,6 +47,8 @@ export function idle() {
     external: false,
     touch: false,
     dwellFromVision: false,
+    suggestions: [],
+    suggestionVideo: '',
   }
 }
 
@@ -222,6 +224,18 @@ export function applyLive(state, msg) {
     )
     return { ...closed, external: true, phase: 'gap' }
   }
+  if (msg.type === 'suggestions') {
+    return {
+      ...state,
+      external: true,
+      phase: 'gap',
+      activeId: null,
+      dwellMs: 0,
+      touch: false,
+      suggestions: Array.isArray(msg.items) ? msg.items : [],
+      suggestionVideo: msg.video || '',
+    }
+  }
   if (msg.type === 'gaze') {
     const nextId = asId(msg.name ?? msg.product ?? msg.productId)
     const fromVision = msg.dwellMs != null && msg.dwellMs !== ''
@@ -257,6 +271,8 @@ export function applyLive(state, msg) {
       external: true,
       touch: Boolean(msg.touch),
       dwellFromVision: fromVision,
+      suggestions: [],
+      suggestionVideo: '',
     }
     return fromVision ? countGlance(opened, dwellMs) : opened
   }
