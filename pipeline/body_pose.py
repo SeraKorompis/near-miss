@@ -44,7 +44,9 @@ class BodyPoseEstimator:
         ids = r.boxes.id.int().cpu().tolist() if r.boxes.id is not None else [None] * len(boxes)
 
         bodies = []
-        for pts, vis, box, tid in zip(kps, confs, boxes, ids):
+        for i, (pts, vis, box, tid) in enumerate(zip(kps, confs, boxes, ids)):
+            if is_nested(i, boxes):
+                continue  # e.g. an arm + held product detected as a second "person"
             body = summarize(pts, vis, box)
             if body:
                 body["track_id"] = tid
@@ -53,6 +55,20 @@ class BodyPoseEstimator:
 
     def close(self):
         pass
+
+
+def is_nested(i, boxes, max_inside=0.6):
+    """True if box i lies mostly inside a bigger box."""
+    x0, y0, x1, y1 = boxes[i]
+    area = max((x1 - x0) * (y1 - y0), 1.0)
+    for j, (a0, b0, a1, b1) in enumerate(boxes):
+        if j == i or (a1 - a0) * (b1 - b0) <= area:
+            continue
+        iw = max(0.0, min(x1, a1) - max(x0, a0))
+        ih = max(0.0, min(y1, b1) - max(y0, b0))
+        if iw * ih / area > max_inside:
+            return True
+    return False
 
 
 def summarize(pts, vis, box):

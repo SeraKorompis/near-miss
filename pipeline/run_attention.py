@@ -73,7 +73,12 @@ def main():
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(exist_ok=True)
-    writer = cv2.VideoWriter(str(out_dir / "annotated.mp4"), cv2.VideoWriter_fourcc(*"mp4v"), fps / every, (w, h))
+    # H.264 plays smoothly in QuickTime/browsers (mp4v glitches). Write to a temp file
+    # and rename at the end so a player never opens a half-written video.
+    video_tmp = out_dir / "annotated.partial.mp4"
+    writer = cv2.VideoWriter(str(video_tmp), cv2.VideoWriter_fourcc(*"avc1"), fps / every, (w, h))
+    if not writer.isOpened():
+        writer = cv2.VideoWriter(str(video_tmp), cv2.VideoWriter_fourcc(*"mp4v"), fps / every, (w, h))
     fusion = AttentionFusion(args.zones, use_face=not args.no_face)
 
     stats = LiveStats()
@@ -107,7 +112,8 @@ def main():
             stats.update(t, people)
             draw_zones(frame, fusion.zones, {p["product"]: color_for(p["person_id"]) for p in people if p["product"]})
             for p in people:
-                draw_person(frame, p)
+                if stats.people[p["person_id"]]["frames"] >= 3:  # hide 1-2 frame tracker blips
+                    draw_person(frame, p)
             draw_panel(frame, stats, t)
             writer.write(frame)
             if not args.no_show:
@@ -123,6 +129,7 @@ def main():
 
     cap.release()
     writer.release()
+    video_tmp.replace(out_dir / "annotated.mp4")
     cv2.destroyAllWindows()
     fusion.close()
 

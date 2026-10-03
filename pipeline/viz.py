@@ -29,6 +29,7 @@ class LiveStats:
                 st["totals"][st["current"]] = st["totals"].get(st["current"], 0.0) + dt
             if p["product"] != st["current"]:
                 st["current"], st["since"] = p["product"], t
+            st["mode"] = p.get("mode")
             if p["touch"] and p["product"]:
                 st["touched"].add(p["product"])
             st["last_t"] = t
@@ -67,8 +68,10 @@ def draw_person(frame, p):
 
     nose = np.array(p["nose"], float)
     gaze = np.array(p["gaze"], float)
-    if np.linalg.norm(gaze) > 0 and abs(p["facing"]) >= 0.15:
+    if np.linalg.norm(gaze) > 0 and (abs(p["facing"]) >= 0.15 or p.get("mode") == "holding"):
         length = min(1.4 * p["torso_h"], 0.3 * frame.shape[1])
+        if p.get("mode") == "holding" and p.get("target"):
+            length = max(40.0, float(np.linalg.norm(np.array(p["target"]) - nose)) * 1.15)
         base = math.atan2(gaze[1], gaze[0])
         pts = [nose]
         for a in np.linspace(-CONE_HALF_ANGLE, CONE_HALF_ANGLE, 9):
@@ -84,6 +87,8 @@ def draw_person(frame, p):
     if p.get("target"):
         dashed_line(frame, tuple(nose.astype(int)), p["target"], color)
         cv2.circle(frame, p["target"], 8, color, -1, cv2.LINE_AA)
+        if p.get("mode") == "holding":
+            label_box(frame, f"holding {p['product']}", (p["target"][0] - 60, p["target"][1] + 40), color)
 
     for wr in p["wrists"]:
         cv2.circle(frame, wr, 9 if p["touch"] else 6, (0, 255, 255) if p["touch"] else color, -1, cv2.LINE_AA)
@@ -108,7 +113,8 @@ def draw_panel(frame, stats, t):
         cv2.putText(frame, f"ID {pid:02d}", (x0 + 20, y + 19), FONT, 0.55, (255, 255, 255), 2, cv2.LINE_AA)
         if st["current"]:
             now = t - st["since"]
-            text = f"Looking at {st['current']}"
+            verb = {"holding": "Holding", "touch": "Touching"}.get(st.get("mode"), "Looking at")
+            text = f"{verb} {st['current']}"
             cv2.putText(frame, text, (x0 + 90, y + 19), FONT, 0.55, (255, 255, 255), 1, cv2.LINE_AA)
             cv2.putText(frame, f"{now:4.1f}s", (x0 + pw - 70, y + 19), FONT, 0.6, (0, 230, 255), 2, cv2.LINE_AA)
         else:
