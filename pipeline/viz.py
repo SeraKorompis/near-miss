@@ -5,7 +5,7 @@ import cv2
 import numpy as np
 
 ID_COLORS = [(80, 200, 80), (255, 150, 40), (220, 80, 220), (40, 160, 255), (40, 220, 220)]
-CONE_HALF_ANGLE = 18  # degrees, purely visual
+CONE_HALF_ANGLE = 12  # degrees; same as GAZE_CONE_DEG in fusion.py
 FONT = cv2.FONT_HERSHEY_SIMPLEX
 
 
@@ -90,7 +90,7 @@ def draw_person(frame, p):
         if p.get("mode") == "holding":
             label_box(frame, f"holding {p['product']}", (p["target"][0] - 60, p["target"][1] + 40), color)
 
-    for wr in p["wrists"]:
+    for wr in p["hands"]:
         cv2.circle(frame, wr, 9 if p["touch"] else 6, (0, 255, 255) if p["touch"] else color, -1, cv2.LINE_AA)
     cv2.circle(frame, tuple(nose.astype(int)), 5, (0, 0, 255), -1, cv2.LINE_AA)
 
@@ -99,7 +99,9 @@ def draw_panel(frame, stats, t):
     """Dark panel top-right listing each person's attention, like the pitch mock-up."""
     h, w = frame.shape[:2]
     # Only people seen recently and for more than a few frames (hides tracker blips)
-    rows = sorted((pid, st) for pid, st in stats.people.items() if st["frames"] >= 3 and t - st["last_t"] < 1.5)
+    # Only people seen recently, for more than a few frames, who looked at something
+    rows = sorted((pid, st) for pid, st in stats.people.items()
+                  if st["frames"] >= 3 and t - st["last_t"] < 1.5 and (st["current"] or st["totals"]))
     pw = 380
     ph = 50 + 92 * max(1, len(rows))
     x0, y0 = w - pw - 15, 15

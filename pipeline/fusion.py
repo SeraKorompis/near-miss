@@ -9,7 +9,7 @@ Two kinds of zones (see draw_zones.py):
                Attended when the feet are inside it AND the head faces its shelf side.
   shelf zone - the product area on the shelf itself.
                Attended when the gaze direction (left/right + up/down) points at it,
-               and flagged as a TOUCH when a wrist is inside it.
+               and flagged as a TOUCH when a hand reaches into it.
   holding    - after touching a product, a hand close to the face on the side
                the person faces means they are examining that product in hand.
 Head direction = Face Landmarker yaw when the face is visible (precise),
@@ -29,11 +29,16 @@ FACING_THRESHOLD = 0.3  # |facing| needed to count as looking at a side shelf
 FACE_WEIGHT = 0.7       # how much to trust face yaw over pose when both exist
 SMOOTHING = 0.3         # EMA factor for facing (lower = smoother)
 SHELF_REACH = 3.0       # max head-to-shelf-zone distance, in torso lengths
-GAZE_CONE_DEG = 40      # a shelf zone must be within this angle of the gaze direction
+GAZE_CONE_DEG = 12      # a shelf zone must be hit by a cone this wide (half-angle) around the gaze
 TILT_GAIN = 1.5         # how strongly head tilt bends the gaze ray up/down
+TILT_OFFSET = 0.15      # in profile the nose sits a bit below the ear even when the head is level
 HOLD_REACH = 1.6        # hand within this many torso lengths of the nose = examining it
 HOLD_ABOVE = 0.3        # a hand higher than this above the nose is reaching, not examining
 HOLD_MEMORY_S = 1.0     # keep "holding" through brief wrist-detection dropouts
+REACH_EXTEND = 0.8      # ...or the arm stretched this far sideways (torso lengths)
+HIP_MARGIN = 0.1        # a touch needs the hand above hip level (minus this margin)...
+BODY_CLEARANCE = 0.35   # ...and this far (torso lengths) sideways from the body's centre line
+TOUCH_FRAMES = 2        # consecutive frames a hand must stay in a zone (ignores hands passing through)
 
 
 def load_zones(path):
@@ -73,6 +78,7 @@ class AttentionFusion:
         self.facing_state = {}  # person_id -> smoothed (facing, tilt)
         self.held = {}          # person_id -> last product touched (assumed in hand)
         self.last_hold = {}     # person_id -> (t, hand position) of the last "holding" frame
+        self.touch_streak = {}  # person_id -> (product, consecutive frames)
         self._fallback_id = 1000
 
     def process(self, frame_bgr, timestamp_ms):
@@ -108,20 +114,37 @@ class AttentionFusion:
             self.facing_state[pid] = (facing, tilt)
 
             gaze = gaze_vector(facing, tilt)
-            mode = "looking"
-            hand = self.examining_hand(body, facing, pid)
-            if hand is not None:
-                self.last_hold[pid] = (timestamp_ms / 1000, hand)
-            elif pid in self.last_hold and timestamp_ms / 1000 - self.last_hold[pid][0] <= HOLD_MEMORY_S \
-                    and not self.wrist_in_shelf(body):
-                hand = self.last_hold[pid][1]  # wrist briefly lost, still examining
-            if hand is not None:
-                product, touch, target, mode = self.held[pid], False, hand, "holding"
-                gaze = unit(np.array(hand, float) - np.array(body["nose"], float))
+            t = timestamp_ms / 1000
+
+            # 1. Touch (hand reaching into a shelf zone for a few frames) wins and
+            #    becomes the product they are holding.
+            # While examining a held product, only a clearly stretched arm is a new touch
+            examining = self.examining_hand(body, facing, pid) is not None
+            touched = self.touching(body, stretched_only=examining)
+            name = touched[0] if touched else None
+            prev_name, count = self.touch_streak.get(pid, (None, 0))
+            count = count + 1 if name and name == prev_name else (1 if name else 0)
+            self.touch_streak[pid] = (name, count)
+
+            hand = None
+            if touched and count >= TOUCH_FRAMES:
+                product, touch, target, mode = touched[0], True, touched[1], "touch"
+                self.held[pid] = product
+                self.last_hold.pop(pid, None)
             else:
-                product, touch, target = self.pick_product(body, facing, gaze)
-                if touch:
-                    self.held[pid], mode = product, "touch"
+                # 2. Holding: examining a picked-up product in hand
+                hand = self.examining_hand(body, facing, pid)
+                if hand is not None:
+                    self.last_hold[pid] = (t, hand)
+                elif pid in self.last_hold and t - self.last_hold[pid][0] <= HOLD_MEMORY_S and not touched:
+                    hand = self.last_hold[pid][1]  # hand briefly lost, still examining
+                if hand is not None:
+                    product, touch, target, mode = self.held[pid], False, hand, "holding"
+                    gaze = unit(np.array(hand, float) - np.array(body["nose"], float))
+                else:
+                    # 3. Looking at a shelf zone
+                    product, target = self.looking_at(body, facing, gaze)
+                    touch, mode = False, "looking"
             people.append({
                 "person_id": pid,
                 "product": product,
@@ -137,14 +160,10 @@ class AttentionFusion:
                 "feet_estimated": body["feet_estimated"],
                 "bbox": body["bbox"],
                 "nose": body["nose"],
-                "wrists": body["wrists"],
+                "hands": body["hands"],
                 "yaw": face["yaw"] if face else None,
             })
         return people
-
-    def wrist_in_shelf(self, body):
-        return any(polygon_distance(wr, z["shelf"]) >= 0 and wr[1] < body["nose"][1]
-                   for wr in body["wrists"] for z in self.zones if "shelf" in z)
 
     def examining_hand(self, body, facing, pid):
         """Wrist position if the person is looking at a product they picked up, else None."""
@@ -153,7 +172,7 @@ class AttentionFusion:
         nose = np.array(body["nose"], float)
         reach = HOLD_REACH * body["torso_h"]
         best = None
-        for wr in body["wrists"]:
+        for wr in body["hands"]:
             d = np.array(wr, float) - nose
             if np.linalg.norm(d) > reach or d[1] < -HOLD_ABOVE * body["torso_h"]:
                 continue  # too far away, or raised up to the shelf
@@ -167,46 +186,88 @@ class AttentionFusion:
                 best = wr
         return best
 
-    def pick_product(self, body, facing, gaze):
-        """Returns (product, touched, target_point)."""
-        # 1. Touch: a wrist inside a shelf zone is the strongest signal
-        for zone in self.zones:
-            if "shelf" in zone:
-                for wr in body["wrists"]:
-                    if polygon_distance(wr, zone["shelf"]) >= 0:
-                        return zone["product"], True, tuple(int(v) for v in polygon_center(zone["shelf"]))
+    def touching(self, body, stretched_only=False):
+        """(product, target) for a hand reaching into a shelf zone, else None.
+        Deepest zone wins when zones overlap."""
+        best, best_depth = None, -1.0
+        for hand in body["hands"]:
+            if not is_reaching(body, hand, stretched_only):
+                continue
+            for zone in self.zones:
+                if "shelf" in zone:
+                    depth = polygon_distance(hand, zone["shelf"])
+                    if depth >= 0 and depth > best_depth:
+                        best, best_depth = zone, depth
+        if not best:
+            return None
+        return best["product"], tuple(int(v) for v in polygon_center(best["shelf"]))
 
+    def looking_at(self, body, facing, gaze):
+        """(product, target_point) the head is turned toward, or (None, None)."""
         if abs(facing) < FACING_THRESHOLD:
-            return None, False, None  # looking along the aisle, not at a shelf
+            return None, None  # looking along the aisle, not at a shelf
         side = "right" if facing > 0 else "left"
 
         # 2. Floor zone: standing in front of it and facing its side
         for zone in self.zones:
             if "floor" in zone and zone.get("side") == side and polygon_distance(body["feet"], zone["floor"]) >= 0:
-                return zone["product"], False, None
+                return zone["product"], None
 
         # 3. Shelf zone: the product area best aligned with the gaze ray
         nose = np.array(body["nose"], float)
-        best, best_angle, best_pt = None, GAZE_CONE_DEG, None
+        best, best_score, best_pt = None, (GAZE_CONE_DEG, 0.0), None
         for zone in self.zones:
             if "shelf" not in zone:
                 continue
             if -polygon_distance(nose, zone["shelf"]) > SHELF_REACH * body["torso_h"]:
                 continue
-            center = polygon_center(zone["shelf"])
-            to_zone = center - nose
-            norm = np.linalg.norm(to_zone)
-            if norm < 1:
-                continue
-            angle = math.degrees(math.acos(float(np.clip(np.dot(to_zone / norm, gaze), -1, 1))))
-            if angle < best_angle:
-                best, best_angle, best_pt = zone["product"], angle, tuple(int(v) for v in center)
-        return best, False, best_pt
+            angle, dist, pt = angle_to_zone(nose, gaze, zone["shelf"])
+            # Zones the ray passes through (angle 0) beat near-misses; among those, the first one hit wins
+            if (angle, dist) < best_score:
+                best, best_score, best_pt = zone["product"], (angle, dist), pt
+        return best, best_pt
 
     def close(self):
         self.body.close()
         if self.face:
             self.face.close()
+
+
+def angle_to_zone(origin, direction, polygon):
+    """(angle, distance, point): smallest angle (deg) between the gaze ray and the zone.
+    Angle is 0 when the ray passes through the zone; distance is then how far along
+    the ray it enters (so the first zone hit can win)."""
+    poly = np.array(polygon, float)
+    pts = [poly.mean(axis=0)]
+    for a, b in zip(poly, np.roll(poly, -1, axis=0)):  # sample along the edges
+        pts += [a + (b - a) * k / 8 for k in range(8)]
+    best, best_pt = 180.0, None
+    for q in pts:
+        v = q - origin
+        n = np.linalg.norm(v)
+        if n < 1:
+            continue
+        ang = math.degrees(math.acos(float(np.clip(np.dot(v / n, direction), -1, 1))))
+        if ang < best:
+            best, best_pt = ang, q
+    # Ray passing through the zone: aim the target at the zone centre
+    for d in np.linspace(0, 3000, 300):
+        q = origin + direction * d
+        if polygon_distance(q, polygon) >= 0:
+            return 0.0, float(d), tuple(int(v) for v in poly.mean(axis=0))
+    return best, 0.0, tuple(int(v) for v in best_pt) if best_pt is not None else None
+
+
+def is_reaching(body, hand, stretched_only=False):
+    """Arm reaching out to the shelf: hand above hip level and away from the body,
+    or stretched far sideways. Rules out hands swinging by the hips while walking,
+    and hands held in front of the body that merely overlap a zone in the image."""
+    t = body["torso_h"]
+    above_hip = hand[1] < body["hip_mid"][1] - HIP_MARGIN * t
+    away = abs(hand[0] - (body["shoulder_mid"][0] + body["hip_mid"][0]) / 2)
+    if stretched_only:
+        return away > REACH_EXTEND * t
+    return (above_hip and away > BODY_CLEARANCE * t) or away > REACH_EXTEND * t
 
 
 def unit(v):
@@ -216,7 +277,7 @@ def unit(v):
 
 def gaze_vector(facing, tilt):
     """Unit gaze direction in image coords (x right, y down)."""
-    return unit(np.array([facing, -TILT_GAIN * tilt], float))
+    return unit(np.array([facing, -TILT_GAIN * (tilt + TILT_OFFSET)], float))
 
 
 def match_face(body, faces):

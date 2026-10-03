@@ -6,7 +6,7 @@ MediaPipe's pose model (which needs to find the face first) fails.
     est = BodyPoseEstimator()
     bodies = est.get_body_poses(frame_bgr)
     # [{"track_id": 1, "bbox": (x,y,w,h), "nose": (x,y), "facing": -0.7,
-    #   "wrists": [(x,y), ...], "feet": (x,y), ...}, ...]
+    #   "hands": [(x,y), ...], "feet": (x,y), ...}, ...]
 
 facing: horizontal head direction in IMAGE terms, -1 = facing image-left,
 +1 = facing image-right, ~0 = looking along the aisle (toward/away from camera).
@@ -21,9 +21,10 @@ MODEL_PATH = Path(__file__).resolve().parent.parent / "models" / "yolov8n-pose.p
 
 # COCO keypoint indices
 NOSE, L_EYE, R_EYE, L_EAR, R_EAR = 0, 1, 2, 3, 4
-L_SHOULDER, R_SHOULDER, L_WRIST, R_WRIST = 5, 6, 9, 10
+L_SHOULDER, R_SHOULDER, L_ELBOW, R_ELBOW, L_WRIST, R_WRIST = 5, 6, 7, 8, 9, 10
 L_HIP, R_HIP, L_ANKLE, R_ANKLE = 11, 12, 15, 16
 VISIBLE = 0.4
+HAND_EXTEND = 0.35  # hand centre is ~1/3 of a forearm beyond the wrist
 
 
 class BodyPoseEstimator:
@@ -45,7 +46,7 @@ class BodyPoseEstimator:
 
         bodies = []
         for i, (pts, vis, box, tid) in enumerate(zip(kps, confs, boxes, ids)):
-            if is_nested(i, boxes):
+            if is_nested(i, boxes) or head_inside_bigger(i, pts, boxes):
                 continue  # e.g. an arm + held product detected as a second "person"
             body = summarize(pts, vis, box)
             if body:
@@ -57,7 +58,7 @@ class BodyPoseEstimator:
         pass
 
 
-def is_nested(i, boxes, max_inside=0.6):
+def is_nested(i, boxes, max_inside=0.4):
     """True if box i lies mostly inside a bigger box."""
     x0, y0, x1, y1 = boxes[i]
     area = max((x1 - x0) * (y1 - y0), 1.0)
@@ -67,6 +68,17 @@ def is_nested(i, boxes, max_inside=0.6):
         iw = max(0.0, min(x1, a1) - max(x0, a0))
         ih = max(0.0, min(y1, b1) - max(y0, b0))
         if iw * ih / area > max_inside:
+            return True
+    return False
+
+
+def head_inside_bigger(i, nose_pts, boxes):
+    """True if this detection's nose lies inside a bigger person's box (partial duplicate)."""
+    nx, ny = nose_pts[NOSE]
+    x0, y0, x1, y1 = boxes[i]
+    area = (x1 - x0) * (y1 - y0)
+    for j, (a0, b0, a1, b1) in enumerate(boxes):
+        if j != i and (a1 - a0) * (b1 - b0) > area and a0 <= nx <= a1 and b0 <= ny <= b1:
             return True
     return False
 
@@ -102,15 +114,23 @@ def summarize(pts, vis, box):
     # Tilt: nose above the ears = looking up (+), below = looking down (-)
     tilt = float(np.clip((head_ref[1] - pts[NOSE][1]) / (0.25 * torso_h), -1, 1)) if ears else 0.0
 
-    wrists = [tuple(int(v) for v in pts[i]) for i in (L_WRIST, R_WRIST) if vis[i] >= VISIBLE]
+    # Hand point: the wrist keypoint stops short of the fingers, so extend it
+    # along the forearm (elbow -> wrist) to where the hand actually grabs.
+    hands = []
+    for wrist, elbow in ((L_WRIST, L_ELBOW), (R_WRIST, R_ELBOW)):
+        if vis[wrist] < VISIBLE:
+            continue
+        hand = pts[wrist] + (HAND_EXTEND * (pts[wrist] - pts[elbow]) if vis[elbow] >= VISIBLE else 0)
+        hands.append(tuple(int(v) for v in hand))
     return {
         "bbox": (int(x0), int(y0), int(x1 - x0), int(y1 - y0)),
         "feet": (int(feet[0]), int(feet[1])),
         "feet_estimated": feet_estimated,
         "nose": (int(pts[NOSE][0]), int(pts[NOSE][1])),
         "hip_mid": (int(hip_mid[0]), int(hip_mid[1])),
+        "shoulder_mid": (int(shoulder_mid[0]), int(shoulder_mid[1])),
         "torso_h": torso_h,
-        "wrists": wrists,
+        "hands": hands,
         "facing": round(facing, 3),
         "tilt": round(tilt, 3),
     }
