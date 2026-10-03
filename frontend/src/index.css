@@ -258,6 +258,8 @@ main { width: min(1120px, 100%); margin: 0 auto; padding: 32px 32px 72px; }
 .kpis div:nth-child(5) dd { color: var(--blue); }
 .kpis div:nth-child(6) dd { color: var(--green); }
 
+.suggestions { margin: 8px 0 28px; }
+.suggestions h2 { margin: 0 0 16px; font-size: 26px; letter-spacing: -0.03em; }
 .queue { list-style: none; margin: 0; padding: 0; display: grid; gap: 18px; }
 .queue li { display: grid; grid-template-columns: 36px 1fr 168px; gap: 8px 14px; padding: 16px 18px; }
 .queue-index { margin: 4px 0 0; color: var(--blue); font-size: 12px; }
