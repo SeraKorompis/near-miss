@@ -51,3 +51,39 @@ python pipeline/run_attention.py --source my_video.mov --zones zones.json
 `--source 0` uses the webcam. `--no-show` skips the live window.
 
 `pipeline/calibrate.py` is an older face-only prototype (camera at the shelf facing the shopper); it isn't used by the demo.
+
+## Dashboard
+
+The live floor counts glances, products looked at, and a dwell timer that climbs while the same product name keeps arriving. History stays on dummy volumes for this shelf and ranks the next move. Today and this month scale the week’s volume. They do not change the decision.
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Open the URL Vite prints (usually http://localhost:5173).
+
+The dashboard does not read pixels. It needs the product name the vision model returns. In the browser console, while a clip plays:
+
+```js
+NearMiss.gaze('Dash Pink Lady Apple Sparkling Water')  // or null
+NearMiss.purchase('Lowrise Lager')
+NearMiss.reset()
+```
+
+Or launch with a socket and send the same JSON:
+
+```bash
+# open http://localhost:5173/?feed=ws://localhost:8765
+```
+
+```json
+{ "type": "gaze", "name": "Dash Pink Lady Apple Sparkling Water" }
+{ "type": "purchase", "name": "Lowrise Lager" }
+{ "type": "reset" }
+```
+
+The first message takes over from the mock shoppers. Names are matched to the shelf list, case-insensitively. An unknown name still runs the timer, and dummy history is left unchanged.
+
+Store zones and dwell, not faces or identity. Head direction is a proxy for gaze, not gaze itself. The purchase side is a simulated till log until a real one is connected.

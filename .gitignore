@@ -5,6 +5,8 @@
 .venv/
 __pycache__/
 output/
+node_modules/
+dist/
 
 # Demo videos (tripod) are shared with the team
 !videos/IMG_9470.MOV
