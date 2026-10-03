@@ -6,10 +6,8 @@ const week = analyse('week')
 export function LiveFloor() {
   const aisle = useAisle()
   const { snap, playing, setPlaying, speed, setSpeed, feed } = aisle
-  const active = snap.activeId ? week.byId[snap.activeId] : null
-  const shown = active || (snap.activeId
-    ? { id: snap.activeId, name: snap.activeId, brand: '', position: '', walkAway: 0.7, title: 'No history yet', next: 'The live feed sent this name. Dummy history does not include it yet.' }
-    : null)
+  const shown = snap.activeId ? cardFor(snap.activeId) : null
+  const liveOnly = snap.seen.filter((id) => !week.byId[id])
   const other = shown ? contrastProduct(shown.id, week.products) : null
   const risk = shown ? liveRisk(shown, snap.dwellMs) : 0
   const otherRisk = other ? liveRisk(other, snap.dwellMs) : 0
@@ -21,8 +19,8 @@ export function LiveFloor() {
       <div className="live-bar">
         <div>
           <p className="kicker">
-            <span className={feed === 'live' ? 'dot live' : playing ? 'dot' : 'dot idle'} />
-            {feed === 'live' ? 'Live vision feed' : feed === 'connecting' ? 'Connecting feed' : feed === 'error' ? 'Feed unavailable' : 'Mock aisle'}
+            <span className={feed === 'live' ? 'dot live' : feed === 'mock' && playing ? 'dot' : 'dot idle'} />
+            {feed === 'live' ? 'Live vision feed' : feed === 'error' ? 'Feed unavailable' : feed === 'mock' ? 'Sample aisle' : 'Waiting for the camera'}
             {feed === 'mock' && (
               <>
                 {' '}
@@ -31,13 +29,23 @@ export function LiveFloor() {
             )}
           </p>
           <p className="fine">
-            The vision model sends a product name. The timer runs while that name stays the same. No face is stored. Until the feed is connected, scripted looks play.
+            {feed === 'live'
+              ? 'The camera is sending the product it sees. The timer is that look’s dwell. A product that is not on the dummy shelf is added here anyway.'
+              : feed === 'mock'
+                ? 'This is a scripted sample, not the camera. Start the vision demo and the live floor switches over.'
+                : 'No looks yet. Glances, products and the timer stay at zero until the vision demo sends a product.'}
           </p>
         </div>
         {feed !== 'live' && (
           <div className="controls">
-            <button type="button" onClick={() => setPlaying((on) => !on)}>
-              {playing ? 'Pause' : 'Play'}
+            <button
+              type="button"
+              onClick={() => {
+                if (feed === 'waiting') aisle.playSample()
+                else setPlaying((on) => !on)
+              }}
+            >
+              {feed === 'waiting' ? 'Play sample' : playing ? 'Pause' : 'Play'}
             </button>
             <button type="button" onClick={aisle.nextShopper}>
               Next shopper
@@ -68,12 +76,12 @@ export function LiveFloor() {
           <p className="hero-label">Products</p>
           <p className="hero-num" data-testid="products-count">
             {snap.seen.length}
-            <span> / {week.products.length}</span>
+            <span> / {week.products.length + liveOnly.length}</span>
           </p>
           <p className="hero-note">Products looked at on this shelf</p>
         </article>
         <article className={hot ? 'hero dwell hot' : 'hero dwell'}>
-          <p className="hero-label">{between ? 'Between products' : 'Dwelling on one zone'}</p>
+          <p className="hero-label">{between && feed !== 'waiting' ? 'Between products' : 'Dwelling on one zone'}</p>
           <p className="hero-num timer" data-testid="dwell-timer">
             {formatTimer(between ? 0 : snap.dwellMs)}
           </p>
@@ -82,29 +90,19 @@ export function LiveFloor() {
       </div>
 
       <div className="fixture" aria-label="Shelf">
+        {liveOnly.length > 0 && (
+          <section className="category-block">
+            <h2 className="category">Seen on camera</h2>
+            <div className="shelf">
+              {liveOnly.map((id) => pack(cardFor(id), snap))}
+            </div>
+          </section>
+        )}
         {[['Drinks', 'Drinks'], ['Snacks', 'Snacks'], ['Sauces', 'Sauces and other']].map(([category, label]) => (
         <section key={category} className="category-block">
         <h2 className="category">{label}</h2>
         <div className="shelf">
-          {week.products.filter((product) => product.category === category).map((product) => {
-            const on = product.id === snap.activeId
-            const flash = snap.flash?.productId === product.id ? snap.flash.kind : null
-            const fill = on ? Math.min(100, (snap.dwellMs / 8000) * 100) : 0
-            return (
-              <div key={product.id} className={on ? 'pack on' : flash ? `pack ${flash}` : 'pack'}>
-                <div className="pack-face">
-                  <i style={{ background: product.color }} />
-                  <span>{product.brand}</span>
-                  <strong title={product.name}>{product.short}</strong>
-                  <em>£{product.price.toFixed(2)}</em>
-                </div>
-                <div className="meter">
-                  <span style={{ width: `${fill}%` }} />
-                </div>
-                <small>{product.position}</small>
-              </div>
-            )
-          })}
+          {week.products.filter((product) => product.category === category).map((product) => pack(product, snap))}
         </div>
         </section>
         ))}
@@ -143,7 +141,7 @@ export function LiveFloor() {
                 <li key={entry.id} className={entry.kind}>
                   <span className="log-kind">{labelFor(entry.kind)}</span>
                   <span className="log-what">
-                    <strong>{product?.name || entry.productId}</strong>
+                    <strong>{product?.name || humanize(entry.productId)}</strong>
                     <em>{(entry.dwellMs / 1000).toFixed(1)}s</em>
                   </span>
                   <span className="log-why">{entry.text}</span>
@@ -155,6 +153,54 @@ export function LiveFloor() {
       </div>
     </section>
   )
+}
+
+function pack(product, snap) {
+  const on = product.id === snap.activeId
+  const flash = snap.flash?.productId === product.id ? snap.flash.kind : null
+  const fill = on ? Math.min(100, (snap.dwellMs / 8000) * 100) : 0
+  return (
+    <div key={product.id} className={on ? 'pack on' : flash ? `pack ${flash}` : 'pack'}>
+      <div className="pack-face">
+        <i style={{ background: product.color }} />
+        <span>{product.brand}</span>
+        <strong title={product.name}>{product.short}</strong>
+        {typeof product.price === 'number' && <em>£{product.price.toFixed(2)}</em>}
+      </div>
+      <div className="meter">
+        <span style={{ width: `${fill}%` }} />
+      </div>
+      <small>{on && snap.touch ? 'Touching' : product.position}</small>
+    </div>
+  )
+}
+
+function cardFor(id) {
+  const known = week.byId[id]
+  if (known) return known
+  const name = humanize(id)
+  return {
+    id,
+    name,
+    short: name,
+    brand: 'Camera',
+    color: hashColor(id),
+    position: 'Live zone',
+    walkAway: 0.7,
+    title: 'No history yet',
+    next: 'The camera is measuring this look. Dummy history does not include this product.',
+  }
+}
+
+function humanize(id) {
+  const text = String(id).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim()
+  return text ? text.charAt(0).toUpperCase() + text.slice(1) : 'Unknown product'
+}
+
+function hashColor(id) {
+  let hash = 0
+  for (const char of String(id)) hash = (hash * 33 + char.charCodeAt(0)) >>> 0
+  return `hsl(${hash % 360} 62% 52%)`
 }
 
 function labelFor(kind) {

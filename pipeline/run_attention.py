@@ -20,6 +20,7 @@ from pathlib import Path
 import cv2
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from dashboard_feed import DashboardFeed  # noqa: E402
 from fusion import AttentionFusion  # noqa: E402
 from viz import LiveStats, color_for, draw_panel, draw_person, draw_zones  # noqa: E402
 
@@ -49,6 +50,25 @@ def frames_to_events(rows):
     )
 
 
+def publish_gaze(feed, stats, people, t):
+    """Send the longest current look. An empty frame clears the dashboard timer."""
+    if feed is None:
+        return
+    looking = [p for p in people if p.get("product")]
+    if not looking:
+        feed.gaze(None, 0, False)
+        return
+
+    def dwell(person):
+        st = stats.people.get(person["person_id"])
+        if not st or st["current"] != person["product"]:
+            return 0
+        return max(0.0, t - st["since"])
+
+    person = max(looking, key=dwell)
+    feed.gaze(person["product"], dwell(person) * 1000, person.get("touch"))
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", required=True)
@@ -59,6 +79,8 @@ def main():
     ap.add_argument("--fast", action="store_true", help="don't slow the live window down to real time")
     ap.add_argument("--width", type=int, default=1280, help="process at this width (4K is slow)")
     ap.add_argument("--every", type=int, default=0, help="process every Nth frame (default: ~15 fps)")
+    ap.add_argument("--no-dashboard", action="store_true", help="don't broadcast looks to the live dashboard")
+    ap.add_argument("--dashboard-port", type=int, default=8765)
     args = ap.parse_args()
 
     is_cam = args.source.isdigit()
@@ -80,6 +102,9 @@ def main():
     if not writer.isOpened():
         writer = cv2.VideoWriter(str(video_tmp), cv2.VideoWriter_fourcc(*"mp4v"), fps / every, (w, h))
     fusion = AttentionFusion(args.zones, use_face=not args.no_face)
+    feed = None if args.no_dashboard else DashboardFeed(port=args.dashboard_port)
+    if feed:
+        feed.start()
 
     stats = LiveStats()
     rows, frame_idx, start = [], 0, time.monotonic()
@@ -110,6 +135,7 @@ def main():
                              *p["feet"], p["yaw"] if p["yaw"] is not None else ""])
 
             stats.update(t, people)
+            publish_gaze(feed, stats, people, t)
             draw_zones(frame, fusion.zones, {p["product"]: color_for(p["person_id"]) for p in people if p["product"]})
             for p in people:
                 if stats.people[p["person_id"]]["frames"] >= 3:  # hide 1-2 frame tracker blips
@@ -129,6 +155,8 @@ def main():
 
     cap.release()
     writer.release()
+    if feed:
+        feed.gaze(None, 0, False)
     video_tmp.replace(out_dir / "annotated.mp4")
     cv2.destroyAllWindows()
     fusion.close()

@@ -62,9 +62,15 @@ npm install
 npm run dev
 ```
 
-Open the URL Vite prints (usually http://localhost:5173).
+Open the URL Vite prints (usually http://localhost:5173), then run a demo clip from the repo root:
 
-The dashboard does not read pixels. It needs the product name the vision model returns. In the browser console, while a clip plays:
+```bash
+./run_demo.sh IMG_9470
+```
+
+The pipeline broadcasts each look to `ws://127.0.0.1:8765`. The live floor picks that up on its own: the product being viewed, whether a hand is touching it, and the dwell the camera measured. History stays on dummy volumes. A zone that is not on the dummy shelf, such as `crisps_packs`, is added to the live shelf anyway.
+
+In the browser console, while a clip plays:
 
 ```js
 NearMiss.gaze('Dash Pink Lady Apple Sparkling Water')  // or null
@@ -84,6 +90,6 @@ Or launch with a socket and send the same JSON:
 { "type": "reset" }
 ```
 
-The first message takes over from the mock shoppers. Names are matched to the shelf list, case-insensitively. An unknown name still runs the timer, and dummy history is left unchanged.
+The live floor stays at zero until the first look arrives. Names are matched to the shelf list, case-insensitively. An unknown name still runs the timer, and dummy history is left unchanged.
 
 Store zones and dwell, not faces or identity. Head direction is a proxy for gaze, not gaze itself. The purchase side is a simulated till log until a real one is connected.

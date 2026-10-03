@@ -9,12 +9,13 @@
  *   NearMiss.reset()
  *
  * Or a WebSocket via ?feed=ws://localhost:8765 sending
- *   { "type": "gaze", "name": "Dash Pink Lady Apple Sparkling Water" }
+ *   { "type": "gaze", "name": "crisps_packs", "dwellMs": 1400, "touch": false }
  *   { "type": "purchase", "name": "Lowrise Lager" }
  *   { "type": "reset" }
  *
- * The timer, glance count and product count are derived here from how long
- * the zone stays the same. The pipeline does not have to send durations.
+ * When dwellMs is present it is the duration the camera measured, and the
+ * dashboard shows that number instead of timing the look itself. A name that
+ * is not on the dummy shelf is still shown.
  */
 
 import { ASSUMPTIONS, analyse, resolveProduct, shoppers } from './model.js'
@@ -26,6 +27,28 @@ function asId(token) {
 
 const GAP_MS = 680
 const BETWEEN_MS = 1200
+
+export function idle() {
+  return {
+    shopperIndex: 0,
+    eventIndex: 0,
+    phase: 'gap',
+    elapsed: 0,
+    glances: 0,
+    demoGlances: 0,
+    seen: [],
+    activeId: null,
+    dwellMs: 0,
+    counted: false,
+    log: [],
+    flash: null,
+    shoppersPlayed: 0,
+    seq: 1,
+    external: false,
+    touch: false,
+    dwellFromVision: false,
+  }
+}
 
 export function begin(shopperIndex = 0, prev) {
   const event = shoppers[shopperIndex].events[0]
@@ -45,6 +68,8 @@ export function begin(shopperIndex = 0, prev) {
     shoppersPlayed: prev?.shoppersPlayed ?? 0,
     seq: prev?.seq ?? 1,
     external: prev?.external ?? false,
+    touch: false,
+    dwellFromVision: false,
   }
 }
 
@@ -177,7 +202,7 @@ export function advance(state, dt) {
 
 export function tickLive(state, dt) {
   let current = decay(state, dt)
-  if (!current.activeId) return current
+  if (!current.activeId || current.dwellFromVision) return current
   const dwellMs = current.dwellMs + dt
   return countGlance({ ...current, dwellMs }, dwellMs)
 }
@@ -199,24 +224,41 @@ export function applyLive(state, msg) {
   }
   if (msg.type === 'gaze') {
     const nextId = asId(msg.name ?? msg.product ?? msg.productId)
-    if (nextId === state.activeId) return state
+    const fromVision = msg.dwellMs != null && msg.dwellMs !== ''
+    const reported = fromVision ? Number(msg.dwellMs) : null
+    if (nextId === state.activeId) {
+      if (!fromVision) return { ...state, touch: Boolean(msg.touch) }
+      return countGlance({
+        ...state,
+        external: true,
+        dwellFromVision: true,
+        dwellMs: reported,
+        touch: Boolean(msg.touch),
+      }, reported)
+    }
     let current = { ...state, external: true }
-    if (state.activeId) {
+    if (state.activeId && state.external) {
       const outcome = state.dwellMs >= ASSUMPTIONS.nearMissMs ? 'leave' : undefined
       current = closeLook(current, { productId: state.activeId, ms: state.dwellMs, outcome })
+    } else if (!state.external) {
+      current = { ...current, activeId: null, dwellMs: 0, counted: false, flash: null, seen: [] }
     }
-    if (!nextId) return { ...current, phase: 'gap', external: true }
+    if (!nextId) return { ...current, phase: 'gap', external: true, touch: false, dwellFromVision: fromVision }
     const seen = current.seen.includes(nextId) ? current.seen : [...current.seen, nextId]
-    return {
+    const dwellMs = reported ?? 0
+    const opened = {
       ...current,
       phase: 'gaze',
       activeId: nextId,
-      dwellMs: 0,
+      dwellMs,
       counted: false,
       seen,
       elapsed: 0,
       external: true,
+      touch: Boolean(msg.touch),
+      dwellFromVision: fromVision,
     }
+    return fromVision ? countGlance(opened, dwellMs) : opened
   }
   return state
 }

@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { shoppers } from './model'
-import { advance, applyLive, begin, tickLive } from './playback'
+import { advance, applyLive, begin, idle, tickLive } from './playback'
 
 export function useAisle() {
-  const cursor = useRef(begin(0))
+  const cursor = useRef(idle())
   const [snap, setSnap] = useState(cursor.current)
-  const [playing, setPlaying] = useState(true)
+  const [playing, setPlaying] = useState(false)
   const [speed, setSpeed] = useState(1)
-  const [feed, setFeed] = useState('mock')
-  const playingRef = useRef(true)
+  const [feed, setFeed] = useState('waiting')
+  const playingRef = useRef(false)
   const speedRef = useRef(1)
   const externalRef = useRef(false)
 
@@ -45,26 +45,32 @@ export function useAisle() {
       },
     }
 
-    const feedUrl = new URLSearchParams(window.location.search).get('feed')
+    const requested = new URLSearchParams(window.location.search).get('feed')
+    const feedUrl = requested === 'off' ? '' : (requested || 'ws://127.0.0.1:8765')
     let socket
-    if (feedUrl) {
-      setFeed('connecting')
+    let retry
+    let stopped = false
+    const connect = () => {
+      if (stopped || !feedUrl) return
       try {
         socket = new WebSocket(feedUrl)
-        socket.onopen = () => setFeed('live')
-        socket.onerror = () => setFeed('error')
-        socket.onclose = () => setFeed((current) => (current === 'live' ? 'error' : current))
-        socket.onmessage = (event) => {
-          try {
-            push(JSON.parse(event.data))
-          } catch {
-            /* ignore malformed frames */
-          }
-        }
       } catch {
-        setFeed('error')
+        retry = window.setTimeout(connect, 1500)
+        return
+      }
+      socket.onmessage = (event) => {
+        try {
+          push(JSON.parse(event.data))
+        } catch {
+          /* ignore malformed frames */
+        }
+      }
+      socket.onclose = () => {
+        setFeed((current) => (current === 'live' ? 'error' : current))
+        if (!stopped) retry = window.setTimeout(connect, 1500)
       }
     }
+    connect()
 
     let frame = 0
     let last = performance.now()
@@ -81,6 +87,8 @@ export function useAisle() {
     frame = requestAnimationFrame(loop)
 
     return () => {
+      stopped = true
+      window.clearTimeout(retry)
       cancelAnimationFrame(frame)
       if (socket) socket.close()
       delete window.NearMiss
@@ -94,6 +102,14 @@ export function useAisle() {
     speed,
     setSpeed,
     feed,
+    playSample() {
+      externalRef.current = false
+      setFeed('mock')
+      const next = begin(0)
+      cursor.current = next
+      setSnap(next)
+      setPlaying(true)
+    },
     restart() {
       externalRef.current = false
       setFeed('mock')
@@ -104,10 +120,15 @@ export function useAisle() {
     },
     nextShopper() {
       if (externalRef.current) return
-      const next = begin((cursor.current.shopperIndex + 1) % shoppers.length, {
+      const started = cursor.current.activeId || cursor.current.seen.length || cursor.current.log.length
+      const index = started ? (cursor.current.shopperIndex + 1) % shoppers.length : 0
+      const next = begin(index, started ? {
         ...cursor.current,
         shoppersPlayed: cursor.current.shoppersPlayed + 1,
-      })
+      } : undefined)
+      externalRef.current = false
+      setFeed('mock')
+      setPlaying(true)
       cursor.current = next
       setSnap(next)
     },
