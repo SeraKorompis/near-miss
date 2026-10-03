@@ -52,3 +52,14 @@ Outputs in `output/`: `attention_events.csv` (person_id, product_id, start_s, en
 
 **Film with a fixed camera (tripod / phone leaning on the shelf)** - zones are drawn once, so a moving camera makes them drift.
 Tune `FACING_THRESHOLD` / `FACE_WEIGHT` / `SHELF_REACH` in `pipeline/fusion.py` and `MIN_EVENT_S` in `pipeline/run_attention.py`.
+
+## Demo videos
+`videos/IMG_9470.MOV`, `IMG_9472.MOV`, `IMG_9473.MOV` (tripod, same camera position) use `zones_tripod.json`:
+```bash
+python pipeline/run_attention.py --source videos/IMG_9472.MOV --zones zones_tripod.json --out-dir output/IMG_9472
+```
+| Video | What happens |
+|---|---|
+| IMG_9470 | Takes crisps_packs and leaves with it (purchase) |
+| IMG_9472 | Picks up well_truly_crunchies, puts them back, takes crisps_packs (near-miss on crunchies) |
+| IMG_9473 | Looks at the shelf (mostly crisps_packs / top_shelf), touches nothing (near-miss) |
