@@ -18,6 +18,18 @@ Results go to `output/<video>/`:
 - `attention_events.csv` - person_id, product_id, start_s, end_s, dwell_s, touched
 - `attention_frames.csv` - per-frame detail
 
+## Near-misses, AI recommendations and dashboard
+```bash
+./run_demo.sh --no-show            # 1. attention events for the 3 videos
+python analysis/nearmiss.py         # 2. + till log -> output/results.json
+python analysis/recommend.py        # 3. Ollama (gemma3:12b) -> output/recommendations.json (~45 s)
+streamlit run dashboard/app.py      # 4. dashboard at http://localhost:8501
+```
+- `analysis/till_log.csv` is the simulated till log (what each shopper bought).
+- Near-miss = picked up and put back, or looked >= 2.5 s without touching, and not bought.
+- `recommend.py` falls back to rules if Ollama isn't running (`--rules` forces that);
+  other model: `NEARMISS_MODEL=llama3.2:3b python analysis/recommend.py`.
+
 ## Demo videos
 `videos/IMG_9470.MOV`, `IMG_9472.MOV`, `IMG_9473.MOV` (tripod, same camera position).
 
