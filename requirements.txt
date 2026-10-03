@@ -1,0 +1,10 @@
+# mediapipe 1.0.x crashes on macOS (Metal "Service is unavailable") - keep pinned
+mediapipe==0.10.14
+ultralytics
+lap
+opencv-python
+numpy
+pandas
+streamlit
+plotly
+ollama
